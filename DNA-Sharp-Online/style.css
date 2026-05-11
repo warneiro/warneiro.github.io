@@ -1,0 +1,202 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: #fff;
+  color: #222;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 20px 40px;
+}
+
+header {
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ddd;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 500;
+  color: #111;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #555;
+}
+
+.toolbar select {
+  padding: 5px 8px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  color: #222;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.toolbar select:focus {
+  outline: none;
+  border-color: #888;
+}
+
+.toolbar-right {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  padding: 6px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #fff;
+  color: #222;
+}
+
+button:hover {
+  background: #f5f5f5;
+}
+
+.btn-primary {
+  background: #222;
+  color: #fff;
+  border-color: #222;
+}
+
+.btn-primary:hover {
+  background: #444;
+  border-color: #444;
+}
+
+.panel-header {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.editor-panel,
+.input-panel,
+.output-panel {
+  margin-bottom: 14px;
+}
+
+#source-editor {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #222;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+#source-editor:focus {
+  outline: none;
+  border-color: #888;
+}
+
+#source-editor::placeholder {
+  color: #bbb;
+}
+
+#input-editor {
+  width: 100%;
+  padding: 10px 12px;
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #222;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+
+#input-editor:focus {
+  outline: none;
+  border-color: #888;
+}
+
+#input-editor::placeholder {
+  color: #bbb;
+}
+
+.output-area {
+  min-height: 40px;
+  padding: 12px;
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #222;
+}
+
+.output-area:empty::before {
+  content: "No output";
+  color: #bbb;
+}
+
+.error-area {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: #fff5f5;
+  border: 1px solid #ecc;
+  border-radius: 4px;
+  color: #c33;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+footer {
+  text-align: center;
+  margin-top: 28px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+  font-size: 11px;
+  color: #aaa;
+}
+
+footer a {
+  color: #555;
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}

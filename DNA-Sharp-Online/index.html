@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DNA# Interpreter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Online DNA# Interpreter</h1>
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <label>
+            Mode
+            <select id="mode-select">
+              <option value="symbol">Symbol</option>
+              <option value="line">Line</option>
+              <option value="helix">Helix</option>
+            </select>
+          </label>
+          <label>
+            Example
+            <select id="example-select">
+              <option value="">--</option>
+            </select>
+          </label>
+        </div>
+        <div class="toolbar-right">
+          <button id="run-btn" class="btn-primary">Run</button>
+          <button id="clear-btn">Clear</button>
+        </div>
+      </div>
+
+      <div class="editor-panel">
+        <div class="panel-header">Source</div>
+        <textarea id="source-editor" placeholder="DNA# source code..."></textarea>
+      </div>
+
+      <div class="input-panel">
+        <div class="panel-header">Input</div>
+        <textarea id="input-editor" rows="3" placeholder="Input for , and ? instructions..."></textarea>
+      </div>
+
+      <div class="output-panel">
+        <div class="panel-header">Output</div>
+        <div id="output-area" class="output-area"></div>
+        <div id="error-area" class="error-area" style="display:none;"></div>
+      </div>
+    </main>
+
+    <footer>
+      <a href="https://esolangs.org/wiki/DNA-Sharp">DNA# on Esolang Wiki</a>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
