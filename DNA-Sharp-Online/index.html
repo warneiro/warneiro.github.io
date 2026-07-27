@@ -24,15 +24,15 @@
               <option value="helix">Helix</option>
             </select>
           </label>
-          <label>
-            Example
-            <select id="example-select">
-              <option value="">--</option>
-            </select>
-          </label>
         </div>
         <div class="toolbar-right">
+          <div class="run-mode-toggle" id="run-mode-toggle">
+            <button id="direct-mode-btn" class="mode-btn active">Direct</button>
+            <button id="visual-mode-btn" class="mode-btn">Visual</button>
+          </div>
+          <button id="theme-toggle" title="Toggle dark mode">🌓</button>
           <button id="run-btn" class="btn-primary">Run</button>
+          <button id="pause-btn" class="btn-pause" style="display:none;">Pause</button>
           <button id="clear-btn">Clear</button>
         </div>
       </div>
@@ -40,6 +40,14 @@
       <div class="editor-panel">
         <div class="panel-header">Source</div>
         <textarea id="source-editor" placeholder="DNA# source code..."></textarea>
+      </div>
+
+      <div id="visual-panel" class="visual-panel" style="display:none;">
+        <div class="panel-header">Execution View</div>
+        <div class="visual-controls">
+          <label>Speed <input type="range" id="speed-slider" min="10" max="300" value="60" step="10"> <span id="speed-label">60ms</span></label>
+        </div>
+        <div id="code-viewer" class="code-viewer"></div>
       </div>
 
       <div class="input-panel">
@@ -59,6 +67,9 @@
     </footer>
   </div>
 
+  <script src="constants.js"></script>
+  <script src="parser.js"></script>
+  <script src="interpreter.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

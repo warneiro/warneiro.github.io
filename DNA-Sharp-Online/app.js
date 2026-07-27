@@ -1,296 +1,272 @@
 /* ===================================================================
-   DNA# Web 解释器 — 纯静态版
-   将所有常量、解析器、解释器、UI 逻辑合并为单文件
+   DNA# — UI logic (theme, mode toggle, code viewer, run/pause/stop)
    =================================================================== */
 
-// ════════════════════════════════════════════════════════════
-//  常  量
-// ════════════════════════════════════════════════════════════
-
-const SYMBOL_MAP = Object.freeze({
-  ATAT: ">", ATGC: "<", ATTA: "+", ATCG: "-",
-  GCAT: ".", GCGC: ",", GCTA: "[", GCCG: "]",
-  TAAT: ":=", TAGC: "+=", TATA: "-=", TACG: "*=",
-  CGAT: "/=", CGGC: "~", CGTA: "?", CGCG: "X",
-});
-
-const REVERSE_MAP = Object.freeze(
-  Object.fromEntries(Object.entries(SYMBOL_MAP).map(([k, v]) => [v, k]))
-);
-
-const MULTI_CHAR_SYMBOLS = new Set([":=", "+=", "-=", "*=", "/="]);
-const SINGLE_CHAR_SYMBOLS = new Set([">", "<", "+", "-", ".", ",", "[", "]", "~", "?", "X"]);
-const SYMBOL_FIRST_CHARS = new Set([...MULTI_CHAR_SYMBOLS].map(s => s[0]));
-for (const c of SINGLE_CHAR_SYMBOLS) SYMBOL_FIRST_CHARS.add(c);
-
-const QUINE_TOKEN = "X";
-const QUINE_LENGTH = 3;
-const MEMORY_SIZE = 30000;
-
-// ════════════════════════════════════════════════════════════
-//  解  析  器
-// ════════════════════════════════════════════════════════════
-
-function skipComment(s, i) {
-  while (i + 1 < s.length && s.substring(i, i + 2) !== "*/") i++;
-  if (i + 1 >= s.length) throw new Error("注释未结束，缺少 */");
-  return i + 2;
-}
-
-function parseSymbol(raw) {
-  const out = [];
-  let i = 0;
-  while (i < raw.length) {
-    if (raw.substring(i, i + 2) === "/*") { i = skipComment(raw, i); continue; }
-    const ch = raw[i];
-    if (!SYMBOL_FIRST_CHARS.has(ch)) throw new Error(`未知字符 '${ch}'（位置 ${i}）`);
-    const two = raw.substring(i, i + 2);
-    if (MULTI_CHAR_SYMBOLS.has(two)) { out.push(two); i += 2; }
-    else if (SINGLE_CHAR_SYMBOLS.has(ch)) { out.push(ch); i++; }
-    else throw new Error(`未知符号 '${ch}'（位置 ${i}）`);
-  }
-  return { instructions: out, lineFormSource: out.map(c => REVERSE_MAP[c]).join("") };
-}
-
-function parseLine(raw) {
-  const out = [];
-  let i = 0, kw = "";
-  while (i < raw.length) {
-    if (raw.substring(i, i + 2) === "/*") { i = skipComment(raw, i); continue; }
-    const ch = raw[i];
-    if (!"ATGC".includes(ch)) throw new Error(`未知字符 '${ch}'（位置 ${i}）`);
-    kw += ch;
-    if (kw.length === 4) {
-      if (!(kw in SYMBOL_MAP)) throw new Error(`未知 DNA 序列 "${kw}"（位置 ${i - 3}）`);
-      out.push(SYMBOL_MAP[kw]);
-      kw = "";
-    }
-    i++;
-  }
-  if (kw) throw new Error(`不完整的 DNA 序列 "${kw}"（文件末尾）`);
-  return { instructions: out, lineFormSource: raw };
-}
-
-function parseHelix(raw) {
-  const s = raw.replace(/-/g, "");
-  const out = [];
-  let i = 0, kw = "", lineBuf = "";
-  while (i < s.length) {
-    if (s.substring(i, i + 2) === "/*") { i = skipComment(s, i); continue; }
-    const ch = s[i];
-    if (!"ATGC".includes(ch)) throw new Error(`未知字符 '${ch}'（位置 ${i}）`);
-    kw += ch; lineBuf += ch;
-    if (kw.length === 4) {
-      if (!(kw in SYMBOL_MAP)) throw new Error(`未知 DNA 序列 "${kw}"（位置 ${i - 3}）`);
-      out.push(SYMBOL_MAP[kw]);
-      kw = "";
-    }
-    i++;
-  }
-  if (kw) throw new Error(`不完整的 DNA 序列 "${kw}"（文件末尾）`);
-  return { instructions: out, lineFormSource: lineBuf };
-}
-
-function parseDNA(source, mode) {
-  const raw = source.replace(/\s+/g, "");
-  switch (mode) {
-    case "symbol": return parseSymbol(raw);
-    case "line":   return parseLine(raw);
-    case "helix":  return parseHelix(raw);
-    default: throw new Error(`未知模式 "${mode}"`);
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-//  解  释  器
-// ════════════════════════════════════════════════════════════
-
-function runDNA(code, lineFormSource, inputData) {
-  const memory = new Uint8Array(MEMORY_SIZE);
-  let ptr = 0, pc = 0;
-
-  // 括号跳转表
-  const fwd = new Map(), bwd = new Map();
-  {
-    const stack = [];
-    for (let p = 0; p < code.length; p++) {
-      if (code[p] === "[") stack.push(p);
-      else if (code[p] === "]") {
-        if (!stack.length) return { output: "", error: `多余的 ']'（位置 ${p}）` };
-        const s = stack.pop();
-        fwd.set(s, p); bwd.set(p, s);
-      }
-    }
-    if (stack.length) return { output: "", error: `未闭合的 '['（位置 ${stack[0]}）` };
-  }
-
-  // 输入
-  const chars = [...(inputData || "")];
-  let inpIdx = 0;
-  const readChar = () => (inpIdx >= chars.length ? "" : chars[inpIdx++]);
-  const readInt = () => {
-    while (inpIdx < chars.length && /\s/.test(chars[inpIdx])) inpIdx++;
-    if (inpIdx >= chars.length) return NaN;
-    let s = "";
-    if (chars[inpIdx] === "-") { s = "-"; inpIdx++; }
-    while (inpIdx < chars.length && /[0-9]/.test(chars[inpIdx])) s += chars[inpIdx++];
-    return (s === "" || s === "-") ? NaN : parseInt(s, 10);
-  };
-
-  let output = "";
-
-  // newpointer 解析
-  function parseNewPtr() {
-    pc++;
-    let np = ptr;
-    while (pc < code.length && (code[pc] === ">" || code[pc] === "<")) {
-      np += code[pc] === ">" ? 1 : -1;
-      pc++;
-    }
-    if (np < 0 || np >= MEMORY_SIZE) throw new Error(`newpointer 越界：${np}`);
-    return np;
-  }
-
-  try {
-    while (pc < code.length) {
-      const inst = code[pc];
-
-      if (inst === ">") { ptr++; if (ptr >= MEMORY_SIZE) throw new Error("指针越界（右）"); pc++; }
-      else if (inst === "<") { ptr--; if (ptr < 0) throw new Error("指针越界（左）"); pc++; }
-      else if (inst === "+") { memory[ptr] = (memory[ptr] + 1) % 256; pc++; }
-      else if (inst === "-") { memory[ptr] = (memory[ptr] - 1 + 256) % 256; pc++; }
-      else if (inst === ".") { output += String.fromCharCode(memory[ptr]); pc++; }
-      else if (inst === ",") { const ch = readChar(); memory[ptr] = ch ? ch.charCodeAt(0) % 256 : 0; pc++; }
-      else if (inst === "[") { pc = memory[ptr] === 0 ? fwd.get(pc) + 1 : pc + 1; }
-      else if (inst === "]") { pc = memory[ptr] !== 0 ? bwd.get(pc) : pc + 1; }
-      else if (inst === ":=") { const np = parseNewPtr(); memory[ptr] = memory[np]; }
-      else if (inst === "+=") { const np = parseNewPtr(); memory[ptr] = (memory[ptr] + memory[np]) % 256; }
-      else if (inst === "-=") { const np = parseNewPtr(); memory[ptr] = (memory[ptr] - memory[np] + 256) % 256; }
-      else if (inst === "*=") { const np = parseNewPtr(); memory[ptr] = (memory[ptr] * memory[np]) % 256; }
-      else if (inst === "/=") {
-        const np = parseNewPtr();
-        if (memory[np] === 0) throw new Error(`除零错误（位置 ${pc}）`);
-        memory[ptr] = Math.floor(memory[ptr] / memory[np]) % 256;
-      }
-      else if (inst === "~") { output += String(memory[ptr]); pc++; }
-      else if (inst === "?") { const v = readInt(); memory[ptr] = isNaN(v) ? 0 : ((v % 256) + 256) % 256; pc++; }
-      else if (inst === QUINE_TOKEN) {
-        if (pc + QUINE_LENGTH - 1 < code.length && code.slice(pc, pc + QUINE_LENGTH).every(c => c === QUINE_TOKEN)) {
-          output += lineFormSource; pc += QUINE_LENGTH;
-        } else pc++;
-      }
-      else throw new Error(`未知指令 "${inst}"（位置 ${pc}）`);
-    }
-  } catch (e) {
-    return { output, error: e.message };
-  }
-  return { output, error: null };
-}
-
-// ════════════════════════════════════════════════════════════
-//  示  例
-// ════════════════════════════════════════════════════════════
-
-const EXAMPLES = {
-  helloWorld: {
-    name: "Hello World",
-    symbol: "+++=+=X>:=<-*=+=X>:=<<+=+=X<+=<--.---.+=<-..+++.>.<+=<.-=<.+++.-=<++.-=<.>+.",
-  },
-  fibonacci: {
-    name: "Fibonacci Numbers",
-    symbol: "+++++*=X>>+>>:=<<<<+++++++<<<<[>>>:=<+=<<X<<:=>X>:=>X>~><<<<-]",
-  },
-  quine: {
-    name: "Quine",
-    symbol: "XXX",
-  },
-};
-
-// ════════════════════════════════════════════════════════════
-//  UI
-// ════════════════════════════════════════════════════════════
-
 document.addEventListener("DOMContentLoaded", () => {
-  const modeSelect   = document.getElementById("mode-select");
-  const exampleSel   = document.getElementById("example-select");
-  const sourceEditor = document.getElementById("source-editor");
-  const inputEditor  = document.getElementById("input-editor");
-  const runBtn       = document.getElementById("run-btn");
-  const clearBtn     = document.getElementById("clear-btn");
-  const outputArea   = document.getElementById("output-area");
-  const errorArea    = document.getElementById("error-area");
+  const modeSelect     = document.getElementById("mode-select");
+  const sourceEditor   = document.getElementById("source-editor");
+  const inputEditor    = document.getElementById("input-editor");
+  const runBtn         = document.getElementById("run-btn");
+  const pauseBtn       = document.getElementById("pause-btn");
+  const clearBtn       = document.getElementById("clear-btn");
+  const outputArea     = document.getElementById("output-area");
+  const errorArea      = document.getElementById("error-area");
+  const themeToggle    = document.getElementById("theme-toggle");
+  const directModeBtn  = document.getElementById("direct-mode-btn");
+  const visualModeBtn  = document.getElementById("visual-mode-btn");
+  const visualPanel    = document.getElementById("visual-panel");
+  const codeViewer     = document.getElementById("code-viewer");
+  const speedSlider    = document.getElementById("speed-slider");
+  const speedLabel     = document.getElementById("speed-label");
 
-  // 加载示例下拉
-  for (const [key, ex] of Object.entries(EXAMPLES)) {
-    const opt = document.createElement("option");
-    opt.value = key;
-    opt.textContent = ex.name;
-    exampleSel.appendChild(opt);
+  let runMode = "direct";
+  let visualRunning = false;
+  let control = null;
+
+  // ── Theme ─────────────────────────────────────────────────
+
+  const THEME_KEY = "dnasharp-theme";
+
+  function getSystemTheme() {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
-  // 选择示例
-  exampleSel.addEventListener("change", () => {
-    const ex = EXAMPLES[exampleSel.value];
-    if (!ex) return;
-    sourceEditor.value = ex.symbol || "";
-    modeSelect.value = "symbol";
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    themeToggle.textContent = theme === "dark" ? "\u2600" : "\uD83C\uDF19";
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  const saved = localStorage.getItem(THEME_KEY);
+  const initialTheme = saved || getSystemTheme();
+  applyTheme(initialTheme);
+
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    if (!localStorage.getItem(THEME_KEY)) {
+      applyTheme(e.matches ? "dark" : "light");
+    }
   });
+
+  themeToggle.addEventListener("click", toggleTheme);
+
+  // ── Run mode toggle ──────────────────────────────────────
+
+  function setRunMode(mode) {
+    if (visualRunning && mode === "direct") return;
+    runMode = mode;
+    directModeBtn.classList.toggle("active", mode === "direct");
+    visualModeBtn.classList.toggle("active", mode === "visual");
+    visualPanel.style.display = mode === "visual" ? "block" : "none";
+    if (mode === "direct") {
+      codeViewer.innerHTML = "";
+      clearHighlights();
+    }
+  }
+
+  directModeBtn.addEventListener("click", () => setRunMode("direct"));
+  visualModeBtn.addEventListener("click", () => setRunMode("visual"));
+
+  // ── Speed slider ─────────────────────────────────────────
+
+  speedSlider.addEventListener("input", () => {
+    speedLabel.textContent = speedSlider.value + "ms";
+  });
+
+  // ── Code viewer builder ──────────────────────────────────
+
+  function buildCodeViewer(instructions, mode) {
+    codeViewer.innerHTML = "";
+    const frag = document.createDocumentFragment();
+
+    if (mode === "symbol") {
+      for (let i = 0; i < instructions.length; i++) {
+        const span = document.createElement("span");
+        span.className = "instr";
+        span.dataset.pc = i;
+        span.textContent = instructions[i];
+        frag.appendChild(span);
+      }
+    } else {
+      for (let i = 0; i < instructions.length; i++) {
+        const span = document.createElement("span");
+        span.className = "instr";
+        span.dataset.pc = i;
+        span.textContent = REVERSE_MAP[instructions[i]] || instructions[i];
+        frag.appendChild(span);
+      }
+    }
+
+    codeViewer.appendChild(frag);
+  }
+
+  function highlightInstruction(pc) {
+    clearHighlights();
+    const active = codeViewer.querySelector(`[data-pc="${pc}"]`);
+    if (active) {
+      active.classList.add("active");
+      active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  function clearHighlights() {
+    codeViewer.querySelectorAll(".instr.active").forEach(el => el.classList.remove("active"));
+  }
+
+  // ── Error / output helpers ───────────────────────────────
 
   function showError(msg) {
     errorArea.textContent = msg;
     errorArea.style.display = "block";
-    outputArea.textContent = "";
   }
   function clearError() {
     errorArea.textContent = "";
     errorArea.style.display = "none";
   }
 
-  // 运行
+  // ── Enter / leave visual-running UI state ────────────────
+
+  function enterVisualRunning() {
+    visualRunning = true;
+    runBtn.textContent = "Stop";
+    runBtn.classList.add("btn-stop");
+    runBtn.disabled = false;
+    pauseBtn.style.display = "";
+    pauseBtn.textContent = "Pause";
+    control = createControl();
+    return control;
+  }
+
+  function leaveVisualRunning() {
+    visualRunning = false;
+    runBtn.textContent = "Run";
+    runBtn.classList.remove("btn-stop");
+    runBtn.disabled = false;
+    pauseBtn.style.display = "none";
+    control = null;
+    clearHighlights();
+  }
+
+  // ── Stop execution ───────────────────────────────────────
+
+  function stopVisual() {
+    if (control) {
+      control.abort();
+      control = null;
+    }
+    leaveVisualRunning();
+  }
+
+  // ── Pause / Resume ───────────────────────────────────────
+
+  pauseBtn.addEventListener("click", () => {
+    if (!control) return;
+    if (control.paused) {
+      control.resume();
+      pauseBtn.textContent = "Pause";
+    } else {
+      control.pause();
+      pauseBtn.textContent = "Resume";
+    }
+  });
+
+  // ── Run ──────────────────────────────────────────────────
+
   function runCode() {
+    if (visualRunning) {
+      stopVisual();
+      return;
+    }
+
     const source = sourceEditor.value.trim();
-    if (!source) { showError("请输入 DNA# 源码"); return; }
+    if (!source) { showError("Please enter DNA# source code"); return; }
 
     clearError();
-    outputArea.textContent = "运行中…";
-    runBtn.disabled = true;
 
-    // 使用 setTimeout 避免阻塞 UI
-    setTimeout(() => {
-      try {
-        let parseResult;
+    let parseResult;
+    try {
+      parseResult = parseDNA(source, modeSelect.value);
+    } catch (e) {
+      showError(e.message);
+      outputArea.textContent = "";
+      return;
+    }
+
+    const { instructions, lineFormSource } = parseResult;
+
+    if (runMode === "direct") {
+      // ── Direct mode ──────────────────────────────────────
+      outputArea.textContent = "Running...";
+      runBtn.disabled = true;
+
+      setTimeout(() => {
         try {
-          parseResult = parseDNA(source, modeSelect.value);
+          const result = runDNA(instructions, lineFormSource, inputEditor.value);
+          if (result.error) {
+            showError(result.error);
+            outputArea.textContent = result.output || "";
+          } else {
+            clearError();
+            outputArea.textContent = result.output || "(no output)";
+          }
         } catch (e) {
           showError(e.message);
-          outputArea.textContent = "";
-          runBtn.disabled = false;
-          return;
         }
+        runBtn.disabled = false;
+      }, 10);
 
-        const result = runDNA(parseResult.instructions, parseResult.lineFormSource, inputEditor.value);
-        if (result.error) {
+    } else {
+      // ── Visual mode ──────────────────────────────────────
+
+      buildCodeViewer(instructions, modeSelect.value);
+
+      outputArea.textContent = "";
+      clearError();
+      codeViewer.scrollTop = 0;
+
+      const ctrl = enterVisualRunning();
+      const delay = parseInt(speedSlider.value, 10);
+
+      runDNAVisual(instructions, lineFormSource, inputEditor.value, delay,
+        (currentPc, currentOutput) => {
+          highlightInstruction(currentPc);
+          if (currentOutput) outputArea.textContent = currentOutput;
+        },
+        ctrl
+      ).then(result => {
+        if (!visualRunning) return; // already stopped
+        leaveVisualRunning();
+
+        if (result.error && result.error !== "Execution stopped") {
           showError(result.error);
-          outputArea.textContent = result.output || "";
+          if (result.output) outputArea.textContent = result.output;
+        } else if (result.error === "Execution stopped") {
+          // stopped by user; keep current output
         } else {
           clearError();
-          outputArea.textContent = result.output || "（无输出）";
+          if (!result.output) outputArea.textContent = "(no output)";
         }
-      } catch (e) {
-        showError(e.message);
-      }
-      runBtn.disabled = false;
-    }, 10);
+        setTimeout(clearHighlights, 600);
+      });
+    }
   }
 
   function clearAll() {
+    if (visualRunning) stopVisual();
     sourceEditor.value = "";
     inputEditor.value = "";
     outputArea.textContent = "";
     clearError();
+    codeViewer.innerHTML = "";
+    clearHighlights();
   }
 
-  // 快捷键
+  // Keyboard shortcut
   document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
