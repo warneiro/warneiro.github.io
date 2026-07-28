@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esolangs Interpreters</title>
+  <link rel="shortcut icon" href="favicon.ico">
+  <style>
+    :root {
+      --bg: #fff;
+      --bg-secondary: #fafafa;
+      --text: #222;
+      --text-secondary: #555;
+      --text-muted: #888;
+      --border: #ddd;
+      --border-light: #eee;
+      --btn-bg: #fff;
+      --btn-border: #ccc;
+      --btn-hover: #f5f5f5;
+      --link-hover: #fafafa;
+      --badge-bg: #f0f0f0;
+      --badge-text: #555;
+      --footer-text: #aaa;
+      --footer-link: #555;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1a1a2e;
+      --bg-secondary: #16213e;
+      --text: #e0e0e0;
+      --text-secondary: #aaa;
+      --text-muted: #6a6a7a;
+      --border: #2e2e42;
+      --border-light: #252540;
+      --btn-bg: #252540;
+      --btn-border: #3a3a5a;
+      --btn-hover: #30304a;
+      --link-hover: #1e2a4a;
+      --badge-bg: #2a2a40;
+      --badge-text: #7a7a9a;
+      --footer-text: #4a4a5a;
+      --footer-link: #7a7a9a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--btn-bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    #theme-toggle:hover {
+      background: var(--btn-hover);
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 20px 40px;
+    }
+
+    header {
+      margin-bottom: 40px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    header a {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+
+    header a:hover {
+      text-decoration: underline;
+    }
+
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      display: block;
+      padding: 20px 24px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      text-decoration: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .card:hover {
+      background: var(--link-hover);
+      border-color: var(--text-muted);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      border-radius: 3px;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 48px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-light);
+      font-size: 11px;
+      color: var(--footer-text);
+    }
+
+    footer a {
+      color: var(--footer-link);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <button id="theme-toggle" title="Toggle dark mode">&#x2600;</button>
+  <div class="container">
+    <header>
+      <h1>Esolangs Interpreters</h1>
+      <a href="index.html">&larr; warneiro</a>
+    </header>
+
+    <div class="cards">
+      <a class="card" href="DNA-Sharp-Online/">
+        <div class="card-title">DNA# Interpreter</div>
+        <div class="card-desc">An esoteric programming language based on the structure of DNA. Code written as sequences of nucleotides.</div>
+        <div class="card-meta">
+          <span class="badge">Symbol</span>
+          <span class="badge">Line</span>
+          <span class="badge">Helix</span>
+        </div>
+      </a>
+
+      <a class="card" href="Codon-Online/">
+        <div class="card-title">Codon Interpreter</div>
+        <div class="card-desc">A stack-based esoteric programming language using codons (triplets of nucleotides) as instructions.</div>
+        <div class="card-meta">
+          <span class="badge">Stack-based</span>
+        </div>
+      </a>
+    </div>
+
+    <footer>
+      <a href="https://esolangs.org">Esolang Wiki</a>
+    </footer>
+  </div>
+
+  <script>
+    const toggle = document.getElementById("theme-toggle");
+    const KEY = "esolang-theme";
+
+    function getSystem() {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    function apply(t) {
+      document.documentElement.setAttribute("data-theme", t);
+      toggle.textContent = t === "dark" ? "\u2600" : "\uD83C\uDF19";
+    }
+
+    function flip() {
+      const cur = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = cur === "dark" ? "light" : "dark";
+      localStorage.setItem(KEY, next);
+      apply(next);
+    }
+
+    const saved = localStorage.getItem(KEY);
+    apply(saved || "dark");
+
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
+      if (!localStorage.getItem(KEY)) apply(e.matches ? "dark" : "light");
+    });
+
+    toggle.addEventListener("click", flip);
+  </script>
+</body>
+</html>

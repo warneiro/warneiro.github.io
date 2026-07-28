@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codon Interpreter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Online Codon Interpreter</h1>
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="run-mode-toggle" id="run-mode-toggle">
+            <button id="direct-mode-btn" class="mode-btn active">Direct</button>
+            <button id="visual-mode-btn" class="mode-btn">Visual</button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button id="theme-toggle" title="Toggle dark mode">&#x1F313;</button>
+          <button id="run-btn" class="btn-primary">Run</button>
+          <button id="pause-btn" class="btn-pause" style="display:none;">Pause</button>
+          <button id="clear-btn">Clear</button>
+        </div>
+      </div>
+
+      <div class="editor-panel">
+        <div class="panel-header">Source</div>
+        <textarea id="source-editor" placeholder="Codon source code..." spellcheck="false"></textarea>
+      </div>
+
+      <div id="visual-panel" class="visual-panel" style="display:none;">
+        <div class="panel-header">Execution View</div>
+        <div class="visual-controls">
+          <label>Speed <input type="range" id="speed-slider" min="10" max="300" value="60" step="10"> <span id="speed-label">60ms</span></label>
+        </div>
+        <div id="code-viewer" class="code-viewer"></div>
+      </div>
+
+      <div class="input-panel">
+        <div class="panel-header">Input</div>
+        <textarea id="input-editor" rows="3" placeholder="Program input..."></textarea>
+      </div>
+
+      <div class="output-panel">
+        <div class="panel-header">Output</div>
+        <div id="output-area" class="output-area"></div>
+        <div id="error-area" class="error-area" style="display:none;"></div>
+      </div>
+    </main>
+
+    <footer>
+      <a href="https://esolangs.org/wiki/Codon">Codon on Esolang Wiki</a>
+    </footer>
+  </div>
+
+  <script src="interpreter.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const sourceEditor   = document.getElementById("source-editor");
+      const inputEditor    = document.getElementById("input-editor");
+      const runBtn         = document.getElementById("run-btn");
+      const pauseBtn       = document.getElementById("pause-btn");
+      const clearBtn       = document.getElementById("clear-btn");
+      const outputArea     = document.getElementById("output-area");
+      const errorArea      = document.getElementById("error-area");
+      const themeToggle    = document.getElementById("theme-toggle");
+      const directModeBtn  = document.getElementById("direct-mode-btn");
+      const visualModeBtn  = document.getElementById("visual-mode-btn");
+      const visualPanel    = document.getElementById("visual-panel");
+      const codeViewer     = document.getElementById("code-viewer");
+      const speedSlider    = document.getElementById("speed-slider");
+      const speedLabel     = document.getElementById("speed-label");
+
+      let runMode = "direct";
+      let visualRunning = false;
+      let control = null;
+
+      // ── Theme ─────────────────────────────────────────────────
+
+      const THEME_KEY = "codon-theme";
+
+      function getSystemTheme() {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+
+      function applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        themeToggle.innerHTML = theme === "dark" ? "\u2600" : "\uD83C\uDF19";
+      }
+
+      function toggleTheme() {
+        const current = document.documentElement.getAttribute("data-theme") || "light";
+        const next = current === "dark" ? "light" : "dark";
+        localStorage.setItem(THEME_KEY, next);
+        applyTheme(next);
+      }
+
+      const saved = localStorage.getItem(THEME_KEY);
+      applyTheme(saved || getSystemTheme());
+
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+        if (!localStorage.getItem(THEME_KEY)) {
+          applyTheme(e.matches ? "dark" : "light");
+        }
+      });
+
+      themeToggle.addEventListener("click", toggleTheme);
+
+      // ── Run mode toggle ──────────────────────────────────────
+
+      function setRunMode(mode) {
+        if (visualRunning && mode === "direct") return;
+        runMode = mode;
+        directModeBtn.classList.toggle("active", mode === "direct");
+        visualModeBtn.classList.toggle("active", mode === "visual");
+        visualPanel.style.display = mode === "visual" ? "block" : "none";
+        if (mode === "direct") {
+          codeViewer.innerHTML = "";
+          clearHighlights();
+        }
+      }
+
+      directModeBtn.addEventListener("click", () => setRunMode("direct"));
+      visualModeBtn.addEventListener("click", () => setRunMode("visual"));
+
+      // ── Speed slider ─────────────────────────────────────────
+
+      speedSlider.addEventListener("input", () => {
+        speedLabel.textContent = speedSlider.value + "ms";
+      });
+
+      // ── Code viewer builder ──────────────────────────────────
+
+      function buildCodeViewer(codons) {
+        codeViewer.innerHTML = "";
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < codons.length; i++) {
+          const span = document.createElement("span");
+          span.className = "instr";
+          span.dataset.pc = i;
+          span.textContent = codons[i];
+          frag.appendChild(span);
+        }
+        codeViewer.appendChild(frag);
+      }
+
+      function highlightInstruction(pc) {
+        clearHighlights();
+        if (pc >= 0) {
+          const active = codeViewer.querySelector(`[data-pc="${pc}"]`);
+          if (active) {
+            active.classList.add("active");
+            active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }
+        }
+      }
+
+      function clearHighlights() {
+        codeViewer.querySelectorAll(".instr.active").forEach(el => el.classList.remove("active"));
+      }
+
+      // ── Error / output helpers ───────────────────────────────
+
+      function showError(msg) {
+        errorArea.textContent = msg;
+        errorArea.style.display = "block";
+      }
+
+      function clearError() {
+        errorArea.textContent = "";
+        errorArea.style.display = "none";
+      }
+
+      // ── Enter / leave visual-running UI state ────────────────
+
+      function enterVisualRunning() {
+        visualRunning = true;
+        runBtn.textContent = "Stop";
+        runBtn.classList.add("btn-stop");
+        runBtn.disabled = false;
+        pauseBtn.style.display = "";
+        pauseBtn.textContent = "Pause";
+        control = createControl();
+        return control;
+      }
+
+      function leaveVisualRunning() {
+        visualRunning = false;
+        runBtn.textContent = "Run";
+        runBtn.classList.remove("btn-stop");
+        runBtn.disabled = false;
+        pauseBtn.style.display = "none";
+        control = null;
+        clearHighlights();
+      }
+
+      function stopVisual() {
+        if (control) {
+          control.abort();
+          control = null;
+        }
+        leaveVisualRunning();
+      }
+
+      // ── Pause / Resume ───────────────────────────────────────
+
+      pauseBtn.addEventListener("click", () => {
+        if (!control) return;
+        if (control.paused) {
+          control.resume();
+          pauseBtn.textContent = "Pause";
+        } else {
+          control.pause();
+          pauseBtn.textContent = "Resume";
+        }
+      });
+
+      // ── Run ──────────────────────────────────────────────────
+
+      function runCode() {
+        if (visualRunning) {
+          stopVisual();
+          return;
+        }
+
+        const source = sourceEditor.value.trim();
+        if (!source) {
+          showError("Please enter Codon source code");
+          outputArea.textContent = "";
+          return;
+        }
+
+        clearError();
+
+        let parseResult;
+        try {
+          parseResult = parseCodon(source);
+        } catch (e) {
+          showError(e.message);
+          outputArea.textContent = "";
+          return;
+        }
+
+        const { compiled, codons } = parseResult;
+
+        if (runMode === "direct") {
+          outputArea.textContent = "Running...";
+          runBtn.disabled = true;
+
+          setTimeout(() => {
+            try {
+              const result = runCodon(compiled, inputEditor.value);
+              if (result.error) {
+                showError(result.error);
+                outputArea.textContent = result.output || "";
+              } else {
+                clearError();
+                outputArea.textContent = result.output || "(no output)";
+              }
+            } catch (e) {
+              showError(e.message);
+              outputArea.textContent = "";
+            }
+            runBtn.disabled = false;
+          }, 10);
+
+        } else {
+          buildCodeViewer(codons);
+
+          outputArea.textContent = "";
+          clearError();
+          codeViewer.scrollTop = 0;
+
+          const ctrl = enterVisualRunning();
+          const delay = parseInt(speedSlider.value, 10);
+
+          runCodonVisual(compiled, inputEditor.value, delay,
+            (currentPc, currentOutput) => {
+              highlightInstruction(currentPc);
+              if (currentOutput) outputArea.textContent = currentOutput;
+            },
+            ctrl
+          ).then(result => {
+            if (!visualRunning) return;
+            leaveVisualRunning();
+
+            if (result.error && result.error !== "Execution stopped") {
+              showError(result.error);
+              if (result.output) outputArea.textContent = result.output;
+            } else if (result.error === "Execution stopped") {
+              // stopped by user; keep current output
+            } else {
+              clearError();
+              if (!result.output) outputArea.textContent = "(no output)";
+            }
+            setTimeout(clearHighlights, 600);
+          });
+        }
+      }
+
+      function clearAll() {
+        if (visualRunning) stopVisual();
+        sourceEditor.value = "";
+        inputEditor.value = "";
+        outputArea.textContent = "";
+        clearError();
+        codeViewer.innerHTML = "";
+        clearHighlights();
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          runCode();
+        }
+      });
+
+      runBtn.addEventListener("click", runCode);
+      clearBtn.addEventListener("click", clearAll);
+    });
+  </script>
+</body>
+</html>
